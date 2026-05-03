@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APMAS | ระบบจอดรถอัตโนมัติ</title>
+<link href="https://fonts.googleapis.com/css2?family=Itim&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+:root{--g1:#FF1493;--grad:linear-gradient(to right,#FF1493,#FF4DB8,#FF85CC,#FFB6E0);--dark:#1a0010;--mid:#7a1050;--soft:#c06090;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Itim',cursive;min-height:100vh;background:linear-gradient(to right,#fff0f8,#ffe0f3,#ffb6e0,#ff85cc,#ff4db8);background-attachment:fixed;color:var(--dark);}
+.wrap{position:relative;z-index:1;max-width:500px;margin:0 auto;padding:0 16px 64px;}
+.hdr{text-align:center;padding:40px 0 28px;}
+.hdr h1{font-size:56px;font-weight:700;letter-spacing:12px;background:linear-gradient(to right,#FFB6E0,#FF85CC,#FF4DB8,#FF1493);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.hdr p{font-size:11px;color:var(--mid);margin-top:8px;font-family:'Space Mono',monospace;letter-spacing:2px;}
+.tabs{display:flex;gap:5px;background:rgba(255,255,255,0.65);border:1px solid rgba(255,105,180,0.25);border-radius:16px;padding:5px;margin-bottom:14px;}
+.tab{flex:1;padding:9px 4px;text-align:center;border-radius:12px;font-size:14px;cursor:pointer;transition:all .28s;color:var(--mid);}
+.tab.act{background:var(--grad);color:#fff;box-shadow:0 3px 16px rgba(255,20,147,0.42);}
+.tc{display:none;}
+.tc.act{display:block;animation:fadeIn .32s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.card{background:rgba(255,255,255,0.78);border:1px solid rgba(255,105,180,0.3);border-radius:22px;padding:22px 20px;margin-bottom:14px;backdrop-filter:blur(24px);box-shadow:0 4px 28px rgba(255,20,147,0.1);}
+.sec-ttl{font-size:18px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.sec-ttl::before{content:'';display:block;width:4px;height:18px;background:var(--grad);border-radius:3px;}
+.plate-display{text-align:center;padding:20px;margin-bottom:16px;border-radius:18px;background:linear-gradient(to right,rgba(255,20,147,0.1),rgba(255,133,204,0.08));border:2px solid rgba(255,20,147,0.3);}
+.plate-display .label{font-size:12px;color:var(--soft);font-family:'Space Mono',monospace;margin-bottom:8px;}
+.plate-display .plate{font-family:'Space Mono',monospace;font-size:34px;font-weight:700;letter-spacing:8px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.time-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+.time-box{background:rgba(255,255,255,0.8);border:1px solid rgba(255,105,180,0.25);border-radius:14px;padding:14px;text-align:center;}
+.time-box .label{font-size:11px;color:var(--soft);font-family:'Space Mono',monospace;margin-bottom:6px;}
+.time-box .value{font-size:18px;font-weight:700;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.timer-box{background:linear-gradient(135deg,rgba(255,20,147,0.15),rgba(255,133,204,0.1));border:2px solid rgba(255,20,147,0.35);border-radius:18px;padding:22px;text-align:center;margin-bottom:16px;}
+.timer-box .label{font-size:13px;color:var(--mid);margin-bottom:10px;}
+.timer-box .timer{font-family:'Space Mono',monospace;font-size:42px;font-weight:700;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.rrow{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.72);border:1px solid rgba(255,105,180,0.22);border-radius:12px;padding:10px 14px;}
+.rrow .rl{font-size:13px;color:var(--mid);flex:1;}
+.rrow input.rv{width:66px;text-align:center;background:rgba(255,255,255,.95);border:1.5px solid rgba(255,105,180,.3);border-radius:9px;padding:7px;font-family:'Space Mono',monospace;color:var(--g1);font-size:14px;font-weight:700;}
+.btn{width:100%;padding:14px 20px;border-radius:14px;border:none;font-size:16px;font-family:'Itim',cursive;cursor:pointer;transition:all 0.26s;display:flex;align-items:center;justify-content:center;gap:8px;}
+.bp{background:var(--grad);color:#fff;box-shadow:0 5px 24px rgba(255,20,147,0.42);margin-top:16px;}
+.bp:hover{transform:translateY(-2px);box-shadow:0 10px 36px rgba(255,20,147,0.6);}
+.toast{position:fixed;top:18px;right:18px;background:#fff;border:1.5px solid rgba(255,20,147,0.3);border-radius:14px;padding:12px 18px;font-size:13px;color:var(--dark);z-index:9999;transform:translateX(130%);transition:transform 0.4s;box-shadow:0 6px 24px rgba(255,20,147,0.18);max-width:280px;}
+.toast.on{transform:translateX(0);}
+#paypage{display:none;position:fixed;inset:0;z-index:800;overflow-y:auto;background:linear-gradient(to right,#fff0f8,#ffe0f3,#ffb6e0,#ff85cc,#ff4db8);}
+.paywrap{max-width:500px;margin:0 auto;padding:24px 16px 64px;position:relative;z-index:1;}
+.backbtn{display:inline-flex;align-items:center;gap:6px;background:var(--grad);color:#fff;border:none;border-radius:10px;padding:8px 16px;cursor:pointer;font-size:14px;font-family:'Itim',cursive;margin-bottom:20px;box-shadow:0 3px 14px rgba(255,20,147,0.35);}
+.payhero{border-radius:24px;padding:36px 24px;margin-bottom:16px;text-align:center;background:linear-gradient(135deg,rgba(255,20,147,0.9),rgba(255,77,184,0.85));box-shadow:0 10px 40px rgba(255,20,147,0.5);}
+.payhero-tag{font-size:11px;color:rgba(255,255,255,0.8);font-family:'Space Mono',monospace;letter-spacing:2px;margin-bottom:16px;}
+.payhero-plate{font-family:'Space Mono',monospace;font-size:48px;font-weight:700;color:#fff;letter-spacing:12px;margin-bottom:8px;text-shadow:0 4px 12px rgba(0,0,0,0.1);}
+.payhero-amount{font-size:72px;font-weight:700;color:#fff;line-height:1;text-shadow:0 6px 20px rgba(0,0,0,0.15);}
+.paycard{background:rgba(255,255,255,0.82);border:1px solid rgba(255,105,180,0.28);border-radius:20px;padding:20px;margin-bottom:14px;}
+.arow{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,105,180,0.12);}
+.arow:last-child{border:none;}
+.albl{font-size:11px;color:var(--soft);}
+.aval{font-size:14px;color:var(--dark);font-weight:600;text-align:right;}
+.aval.num{font-family:'Space Mono',monospace;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:17px;}
+.qrbox{background:rgba(255,255,255,0.9);border:1px solid rgba(255,105,180,0.22);border-radius:20px;padding:28px;margin-bottom:14px;text-align:center;}
+#qr-disp{display:flex;flex-direction:column;align-items:center;justify-content:center;}
+#qr-disp canvas{border-radius:16px;border:6px solid #fff;box-shadow:0 6px 28px rgba(255,20,147,0.3);max-width:220px;margin:0 auto;display:block;}
+.bconf{background:linear-gradient(to right,#16a34a,#15803d);color:#fff;box-shadow:0 5px 24px rgba(22,163,74,0.38);font-size:17px;padding:16px;border-radius:16px;border:none;width:100%;cursor:pointer;font-family:'Itim',cursive;transition:all 0.26s;}
+.bconf:hover{transform:translateY(-2px);box-shadow:0 10px 32px rgba(22,163,74,0.55);}
+#suc{display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(to right,#fff0f8,#ffe0f3,#ffb6e0,#ff85cc,#ff4db8);align-items:center;justify-content:center;}
+.sucbox{text-align:center;padding:24px;}
+.sucemoji{font-size:96px;margin-bottom:16px;}
+.sucbox h2{font-size:40px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;}
+.footer{text-align:center;padding:22px 0 0;font-size:10px;color:var(--soft);font-family:'Space Mono',monospace;letter-spacing:1.5px;}
+</style>
+</head>
+<body>
+<div class="toast" id="toast"><span style="background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-right:6px;font-weight:700">✦</span><span id="tmsg"></span></div>
+<div class="wrap" id="mainpage">
+<div class="hdr"><h1>APMAS</h1><p>ระบบผู้ช่วยจัดการพื้นที่จอดรถอัตโนมัติ</p></div>
+
+<div class="tabs">
+<div class="tab act" id="t-track" onclick="sw('track')">🅿️ ติดตามเวลาจอด</div>
+<div class="tab" id="t-rate" onclick="sw('rate')">⚙️ อัตราค่าจอด</div>
+</div>
+
+<!-- TAB: TRACKING -->
+<div class="tc act" id="tab-track">
+<div class="card">
+<div class="sec-ttl">ติดตามเวลาจอดรถ</div>
+<div class="plate-display">
+<div class="label">ป้ายทะเบียนรถ</div>
+<div class="plate" id="display-plate">รอข้อมูล...</div>
+<div style="font-size:14px;color:var(--soft);margin-top:8px;font-family:'Space Mono',monospace;" id="display-province">—</div>
+</div>
+<div class="time-grid">
+<div class="time-box"><div class="label">ช่องจอด</div><div class="value" id="parking-slot">—</div></div>
+<div class="time-box"><div class="label">สถานะ</div><div class="value" id="payment-status">รอชำระ</div></div>
+</div>
+<div class="time-grid">
+<div class="time-box"><div class="label">วันที่เข้า</div><div class="value" id="track-entry-date">—</div></div>
+<div class="time-box"><div class="label">เวลาเข้า</div><div class="value" id="track-entry-time">—</div></div>
+</div>
+<div class="time-grid">
+<div class="time-box"><div class="label">วันที่เข้าชม</div><div class="value" id="view-date">—</div></div>
+<div class="time-box"><div class="label">เวลาเข้าชม</div><div class="value" id="view-time">—</div></div>
+</div>
+<div class="time-grid">
+<div class="time-box"><div class="label">วันที่ออก</div><div class="value" id="exit-date">—</div></div>
+<div class="time-box"><div class="label">เวลาออก</div><div class="value" id="exit-time">—</div></div>
+</div>
+<div class="timer-box">
+<div class="label">⏱ เวลาที่ใช้บริการ</div>
+<div class="timer" id="live-timer">00:00</div>
+<div style="font-size:12px;color:var(--soft);margin-top:8px;font-family:'Space Mono',monospace">ชั่วโมง : นาที</div>
+</div>
+<button class="btn bp" onclick="exitParking()">💳 ชำระค่าบริการและออกจากที่จอด</button>
+</div>
+</div>
+
+<!-- TAB: RATE -->
+<div class="tc" id="tab-rate">
+<div class="card">
+<div class="sec-ttl">กำหนดอัตราค่าบริการ</div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<div class="rrow" style="background:rgba(220,255,230,.72);border-color:rgba(34,197,94,.3)">
+<span class="rl">⏱ ไม่เกิน 1 ชั่วโมง</span>
+<span style="color:#16a34a;font-family:'Space Mono',monospace;font-size:13px;font-weight:700">ฟรี 🎉</span>
+</div>
+<div class="rrow"><span class="rl">ชั่วโมงแรก (เกิน 1 ชม.)</span><input class="rv" type="number" id="r1" value="30" min="0"/><span style="font-size:11px;color:var(--soft)">฿/ชม.</span></div>
+<div class="rrow"><span class="rl">ชั่วโมงถัดไป</span><input class="rv" type="number" id="rN" value="20" min="0"/><span style="font-size:11px;color:var(--soft)">฿/ชม.</span></div>
+<div class="rrow"><span class="rl">สูงสุดต่อวัน</span><input class="rv" type="number" id="rMax" value="200" min="0"/><span style="font-size:11px;color:var(--soft)">฿</span></div>
+</div>
+</div>
+</div>
+
+<div class="footer">APMAS © 2025 · ระบบผู้ช่วยจัดการพื้นที่จอดรถอัตโนมัติ</div>
+</div>
+
+<!-- PAYMENT PAGE -->
+<div id="paypage">
+<div class="paywrap">
+<button class="backbtn" onclick="closePay()">← กลับ</button>
+<div class="payhero">
+<div class="payhero-tag">🅿️ APMAS · PARKING PAYMENT</div>
+<div class="payhero-plate" id="phplate">—</div>
+<div style="font-size:28px;color:#fff;margin-top:8px;margin-bottom:20px;font-weight:600;text-shadow:0 2px 8px rgba(0,0,0,0.1);" id="phprovince">—</div>
+<div style="font-size:14px;color:rgba(255,255,255,0.85);margin-bottom:24px;" id="phdur">—</div>
+<div class="payhero-amount">฿<span id="phamount">0</span></div>
+<div style="font-size:12px;color:rgba(255,255,255,0.75);margin-top:12px;" id="phnote">ยอดที่ต้องชำระ</div>
+</div>
+<div class="paycard"><div class="sec-ttl">รายละเอียดค่าบริการ</div><div id="payrows"></div></div>
+<div class="paycard">
+<div class="sec-ttl">ข้อมูล PromptPay</div>
+<div class="arow"><span class="albl">ช่องทาง</span><span class="aval" style="color:#16a34a">PromptPay</span></div>
+<div class="arow"><span class="albl">เบอร์</span><span class="aval num">092-379-1035</span></div>
+<div class="arow"><span class="albl">ชื่อ</span><span class="aval">ปวริศา ธาระนัย</span></div>
+</div>
+<div class="qrbox">
+<div style="font-size:10px;color:var(--soft);font-family:'Space Mono',monospace;margin-bottom:18px">PROMPTPAY QR CODE</div>
+<div id="qr-disp"></div>
+<div style="font-size:11px;color:var(--soft);margin-top:14px;font-family:'Space Mono',monospace">สแกนด้วยแอปธนาคารไทย</div>
+</div>
+<button class="btn bconf" onclick="confirmPay()">✅ ยืนยันชำระเงิน</button>
+</div>
+</div>
+
+<!-- SUCCESS -->
+<div id="suc">
+<div class="sucbox">
+<div class="sucemoji">🎉</div>
+<h2>ชำระเงินสำเร็จ!</h2>
+<p style="font-size:15px;color:var(--mid);margin-bottom:4px">ขอบคุณที่ใช้บริการ APMAS</p>
+<div style="font-family:'Space Mono',monospace;font-size:26px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:14px 0 22px;letter-spacing:5px" id="splate">—</div>
+<button class="btn bp" style="max-width:220px;margin:0 auto" onclick="closeSuc()">กลับหน้าหลัก</button>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+// ========== FIREBASE CONFIG ==========
+// ⚠️ วาง Firebase Config เดียวกับที่ใช้ใน Admin UI
+const firebaseConfig = {
+  apiKey: "AIzaSyBPKwVZccQ83FxBHmPqskZ1DlLNcRJJeA8",
+  authDomain: "apmas-parking.firebaseapp.com",
+  databaseURL: "https://apmas-parking-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  projectId: "apmas-parking",
+  storageBucket: "apmas-parking.firebasestorage.app",
+  messagingSenderId: "806432177524",
+  appId: "1:806432177524:web:ee38d79999d7733af54021"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ========== GOOGLE SHEETS CONFIG ==========
+// ⚠️ ใส่ URL ของ Google Apps Script Web App ที่นี่
+// ตัวอย่าง: https://script.google.com/macros/s/AKfycby.../exec
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxi5fITCOy9zHf9jz6gss5SAVSAnxY-x2icFV8a_9_Vk8blbWv0FC53qC7Ci5HN9WQ_xw/exec';
+
+// ========== STATE ==========
+var ticketId = new URLSearchParams(location.search).get("ticket_id");
+var D = {plate:'รอข้อมูล...'};
+var entryTime = null;
+var exitTime = null;
+var viewTime = null;
+var timerInterval = null;
+
+// ========== INIT ==========
+window.addEventListener('load', function(){
+  viewTime = new Date();
+  updateViewTime();
+  setInterval(updateViewTime, 60000);
+  
+  if(!ticketId){
+    msg('❌ ไม่พบ ticket_id');
+    document.getElementById('display-plate').textContent='ไม่พบข้อมูล';
+    return;
+  }
+  
+  // Listen to Firebase Realtime Database
+  db.ref(`/tickets/${ticketId}`).on("value", (snap) => {
+    const t = snap.val();
+    if(!t){
+      msg('❌ ไม่พบตั๋วนี้');
+      document.getElementById('display-plate').textContent='ไม่พบตั๋วนี้';
+      return;
+    }
+    
+    // อัพเดทข้อมูล
+    var plateText = t.plate_text_verified || t.plate_text_raw || '--';
+    var province = t.province_verified || '';
+    
+    document.getElementById('display-plate').textContent = plateText;
+    document.getElementById('display-province').textContent = province;
+    document.getElementById('parking-slot').textContent = t.slot_id || '—';
+    
+    if(t.time_in){
+      entryTime = new Date(t.time_in);
+      document.getElementById('track-entry-date').textContent = fmtDate(entryTime);
+      document.getElementById('track-entry-time').textContent = fmtTime(entryTime);
+    }
+    
+    if(t.time_out){
+      exitTime = new Date(t.time_out);
+      document.getElementById('exit-date').textContent = fmtDate(exitTime);
+      document.getElementById('exit-time').textContent = fmtTime(exitTime);
+      
+      // อัพเดทสถานะตาม payment_status จาก Firebase
+      if(t.payment_status === 'paid'){
+        document.getElementById('payment-status').textContent = 'ชำระแล้ว';
+        document.getElementById('payment-status').style.color = '#16a34a';
+      }
+    }else{
+      document.getElementById('exit-date').textContent = '—';
+      document.getElementById('exit-time').textContent = '—';
+    }
+    
+    D = {
+      ticket_id: ticketId,
+      plate: plateText + (province?' '+province:''),
+      province: province,
+      slot: t.slot_id || '',
+      entry: entryTime,
+      exit: exitTime
+    };
+    
+    if(!timerInterval && entryTime){
+      startTimer();
+    }
+  });
+});
+
+function sw(name){
+  ['track','rate'].forEach(function(n){
+    document.getElementById('t-'+n).classList.toggle('act',n===name);
+    document.getElementById('tab-'+n).classList.toggle('act',n===name);
+  });
+}
+
+function updateViewTime(){
+  var now=new Date();
+  document.getElementById('view-date').textContent=fmtDate(now);
+  document.getElementById('view-time').textContent=fmtTime(now);
+}
+
+function fmtDate(d){return d.getDate()+'/'+(d.getMonth()+1)+'/'+(d.getFullYear()+543);}
+function fmtTime(d){return d.toTimeString().slice(0,5);}
+
+function startTimer(){
+  timerInterval=setInterval(function(){
+    if(!entryTime)return;
+    var now=exitTime||new Date();
+    var diff=now-entryTime;
+    var hrs=Math.floor(diff/3600000);
+    var mins=Math.floor((diff%3600000)/60000);
+    document.getElementById('live-timer').textContent=pad(hrs)+':'+pad(mins);
+  },1000);
+}
+
+function pad(n){return(n<10?'0':'')+n;}
+function msg(t){var el=document.getElementById('toast');document.getElementById('tmsg').textContent=t;el.classList.add('on');setTimeout(function(){el.classList.remove('on');},3000);}
+
+function exitParking(){
+  if(timerInterval){clearInterval(timerInterval);timerInterval=null;}
+  var now=new Date();
+  var diffMs=now-entryTime;
+  var diffMin=diffMs/60000;
+  var diffHr=diffMs/3600000;
+  var r1=parseFloat(document.getElementById('r1').value)||30;
+  var rn=parseFloat(document.getElementById('rN').value)||20;
+  var rmax=parseFloat(document.getElementById('rMax').value)||200;
+  var total=0,detail='';
+  var days=Math.floor(diffHr/24);
+  var remHr=diffHr-days*24;
+  var billHr=Math.ceil(remHr);
+  if(diffHr<1){total=0;detail='ต่ำกว่า 1 ชั่วโมง (ฟรี)';}else{
+    var dayFee=days*rmax;
+    var remFee=0;
+    if(billHr>=1){remFee=r1+(billHr>1?(billHr-1)*rn:0);remFee=Math.min(remFee,rmax);}
+    total=dayFee+remFee;
+    var parts=[];
+    if(days>0)parts.push(days+' วัน × ฿'+rmax+' = ฿'+dayFee);
+    if(billHr>=1)parts.push(billHr+' ชม. = ฿'+remFee);
+    detail=parts.join(' + ');
+  }
+  var hh=Math.floor(diffMin/60);
+  var mm=Math.floor(diffMin%60);
+  var dur=(hh>0?hh+' ชม. ':'')+mm+' นาที';
+  D.exit=now;D.total=total;D.detail=detail;D.dur=dur;D.diffMin=Math.floor(diffMin);
+  
+  // Debug: แสดงยอดเงินที่คำนวณได้
+  console.log('💰 คำนวณยอดเงินสำเร็จ:', {
+    duration: dur,
+    total: total,
+    detail: detail
+  });
+  
+  openPay();
+}
+
+function openPay(){
+  if(!D.plate||D.plate==='รอข้อมูล...'){msg('กรุณารอข้อมูล');return;}
+  var plateNumber=D.plate.split(' ').slice(0,2).join(' ');
+  var province=D.province||'';
+  document.getElementById('phplate').textContent=plateNumber;
+  document.getElementById('phprovince').textContent=province;
+  document.getElementById('phdur').textContent='ระยะเวลา '+D.dur;
+  document.getElementById('phamount').textContent=D.total.toLocaleString();
+  document.getElementById('phnote').textContent=D.total===0?'🎉 ไม่มีค่าใช้จ่าย':'ยอดที่ต้องชำระ';
+  var rows=[['ป้ายทะเบียน',D.plate],['ช่องจอด',D.slot||'—'],['เวลาเข้า',fdt(D.entry)],['เวลาออก',fdt(D.exit)],['ระยะเวลา',D.dur],['ค่าจอด','฿'+D.total.toLocaleString()]];
+  document.getElementById('payrows').innerHTML=rows.map(function(r){return '<div class="arow"><span class="albl">'+r[0]+'</span><span class="aval">'+r[1]+'</span></div>';}).join('');
+  if(D.total>0){makeQR(D.total,D.plate);}else{var qel=document.getElementById('qr-disp');qel.innerHTML='<div style="font-size:64px">🎉</div><div style="color:#16a34a;font-size:20px;margin-top:10px">FREE!</div>';}
+  var pp=document.getElementById('paypage');
+  pp.style.display='block';
+  pp.scrollTop=0;
+}
+
+function fdt(d){if(!d)return'—';var m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543)+' '+d.toTimeString().slice(0,5);}
+function closePay(){document.getElementById('paypage').style.display='none';if(!timerInterval&&entryTime)startTimer();}
+
+function buildEMV(mobile,amount){function tlv(tag,val){return tag+('00'+val.length).slice(-2)+val;}function crc16(str){var crc=0xFFFF;for(var i=0;i<str.length;i++){crc^=(str.charCodeAt(i)<<8);for(var b=0;b<8;b++){crc=(crc&0x8000)?((crc<<1)^0x1021):(crc<<1);}}return('0000'+(crc&0xFFFF).toString(16).toUpperCase()).slice(-4);}var phone=mobile.replace(/\D/g,'');if(phone.charAt(0)==='0')phone='0066'+phone.slice(1);var tag29=tlv('00','A000000677010111')+tlv('01',phone);var merchantInfo=tlv('29',tag29);var body=tlv('00','01')+tlv('01','12')+merchantInfo+tlv('53','764')+tlv('54',amount.toFixed(2))+tlv('58','TH');var withCRC=body+'6304';var cs=crc16(withCRC);return withCRC+cs;}
+
+function makeQR(amount,plate){var qel=document.getElementById('qr-disp');qel.innerHTML='';var notice=document.createElement('div');notice.style.cssText='background:rgba(255,20,147,0.12);border:2px solid rgba(255,20,147,0.35);border-radius:16px;padding:20px 16px;margin-bottom:24px;text-align:center;';notice.innerHTML='<div style="font-size:17px;font-weight:700;color:#FF1493;line-height:1.8;">📝 รบกวนลูกค้ากรอกป้ายทะเบียนของตนเอง<br>ในช่อง<span style="border-bottom:3px solid #FF1493;padding-bottom:2px;">บันทึกช่วยจำ</span> ขอบคุณค่ะ 🙏</div>';qel.appendChild(notice);var qrContainer=document.createElement('div');qel.appendChild(qrContainer);var payload=buildEMV('0923791035',amount);new QRCode(qrContainer,{text:payload,width:220,height:220,colorDark:'#C71585',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.L});var plateNumber=plate.split(' ').slice(0,2).join(' ');var plateLbl=document.createElement('div');plateLbl.style.cssText='margin-top:16px;font-size:28px;font-weight:700;text-align:center;font-family:"Space Mono",monospace;letter-spacing:6px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;';plateLbl.textContent=plateNumber;qel.appendChild(plateLbl);var province=D.province||'';if(province){var provinceLbl=document.createElement('div');provinceLbl.style.cssText='margin-top:8px;font-size:20px;font-weight:600;text-align:center;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;';provinceLbl.textContent=province;qel.appendChild(provinceLbl);}var amtLbl=document.createElement('div');amtLbl.style.cssText='margin-top:12px;font-size:32px;font-weight:700;text-align:center;color:var(--g1);';amtLbl.textContent='฿ '+amount.toLocaleString();qel.appendChild(amtLbl);}
+
+// ========== ฟังก์ชันยืนยันชำระเงิน (เพิ่มการส่งข้อมูลไป Firebase) ==========
+function confirmPay(){
+  // ส่งข้อมูลการชำระเงินไป Firebase
+  db.ref(`/tickets/${ticketId}`).update({
+    time_out: new Date().toISOString(),
+    payment_amount: D.total,
+    payment_status: 'paid',
+    payment_confirmed_at: new Date().toISOString(),
+    plate_number: D.plate.split(' ').slice(0,2).join(' '),
+    province: D.province || '',
+    duration_minutes: D.diffMin || 0
+  }).then(function(){
+    console.log('✓ ส่งข้อมูลไป Firebase สำเร็จ');
+    msg('✓ ชำระเงินสำเร็จ - ส่งข้อมูลไป Firebase แล้ว');
+  }).catch(function(error){
+    console.error('⚠️ Firebase Error:', error);
+    msg('⚠️ บันทึกข้อมูล Firebase ไม่สำเร็จ');
+  });
+  
+  // บันทึกใน Google Sheets (ถ้ามี)
+  sendToGoogleSheets();
+  
+  // แสดงหน้าสำเร็จ
+  showSuccess();
+}
+
+function sendToGoogleSheets(){
+  if(!SHEET_URL||SHEET_URL==='YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL'){
+    console.log('⚠️ ยังไม่ได้ตั้งค่า SHEET_URL');
+    return;
+  }
+  
+  // ⭐ ตรวจสอบว่า D.total มีค่า
+  console.log('🔍 ตรวจสอบข้อมูลก่อนส่ง:', {
+    'D.total': D.total,
+    'D.diffMin': D.diffMin,
+    'D.entry': D.entry,
+    'D.exit': D.exit
+  });
+  
+  var data={
+    ticket_id:D.ticket_id||'',
+    plate:D.plate.split(' ').slice(0,2).join(' ')||'',
+    province:D.province||'',
+    slot:D.slot||'',
+    entry_time:D.entry?D.entry.toISOString():'',
+    exit_time:D.exit?D.exit.toISOString():'',
+    duration_minutes:D.diffMin||0,
+    amount:D.total||0,  // ⭐ ยอดเงินที่คำนวณได้
+    payment_status:'ชำระแล้ว',
+    timestamp:new Date().toISOString()
+  };
+  
+  // Debug: แสดงข้อมูลที่จะส่ง
+  console.log('📊 ข้อมูลที่ส่งไป Google Sheets:', data);
+  console.log('💰 ยอดเงิน (amount):', data.amount);
+  console.log('⏱ ระยะเวลา (duration_minutes):', data.duration_minutes);
+  
+  fetch(SHEET_URL,{
+    method:'POST',
+    mode:'no-cors',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  }).then(function(){
+    console.log('✓ บันทึก Google Sheets สำเร็จ');
+  }).catch(function(err){
+    console.error('⚠️ Google Sheets Error:',err);
+  });
+}
+
+function showSuccess(){document.getElementById('paypage').style.display='none';document.getElementById('splate').textContent=D.plate.split(' ').slice(0,2).join(' ');document.getElementById('suc').style.display='flex';}
+function closeSuc(){document.getElementById('suc').style.display='none';location.reload();}
+</script>
+</body>
+</html>
