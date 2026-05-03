@@ -1,0 +1,145 @@
+function doPost(e) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const data = JSON.parse(e.postData.contents);
+    
+    // ถ้ายังไม่มี Header ให้สร้างตามรูป
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow([
+        'Timestamp',
+        'Ticket ID',
+        'ป้ายทะเบียน',
+        'ช่องจอด',
+        'วันที่เข้า',
+        'เวลาเข้า',
+        'วันที่ออก',
+        'เวลาออก',
+        'ระยะเวลา (ชม:นาที)',
+        'ยอดเงิน (฿)',
+        'สถานะ',
+        'Verify'
+      ]);
+      
+      // จัดรูปแบบ Header
+      var headerRange = sheet.getRange(1, 1, 1, 12);
+      headerRange.setFontWeight('bold');
+      headerRange.setBackground('#FF1493');
+      headerRange.setFontColor('#FFFFFF');
+      headerRange.setHorizontalAlignment('center');
+    }
+    
+    // แปลง ISO timestamp เป็น Date object
+    const entryDate = data.entry_time ? new Date(data.entry_time) : new Date();
+    const exitDate = data.exit_time ? new Date(data.exit_time) : new Date();
+    
+    // คำนวณระยะเวลาจริงจาก entry_time และ exit_time (หน่วยนาที)
+    const durationMinutes = Math.floor((exitDate - entryDate) / 60000);
+    
+    // แปลงเป็น ชั่วโมง:นาที (เช่น 2:30)
+    const hours = Math.floor(durationMinutes / 60);
+    const minutes = durationMinutes % 60;
+    const durationFormatted = hours + ':' + (minutes < 10 ? '0' : '') + minutes;
+    
+    // ⭐ รับยอดเงินจาก amount ที่ส่งมา
+    var amountValue = data.amount || 0;
+    
+    // ⭐ ถ้า amount เป็น 0 ให้คำนวณจาก duration
+    if (amountValue === 0 && durationMinutes > 0) {
+      amountValue = calculateParkingFee(durationMinutes);
+    }
+    
+    // เพิ่มข้อมูลแถวใหม่
+    const newRow = [
+      new Date(),                                    // Timestamp
+      data.ticket_id || '',                          // Ticket ID
+      data.plate || '',                              // ป้ายทะเบียน
+      data.slot || '',                               // ช่องจอด
+      Utilities.formatDate(entryDate, 'Asia/Bangkok', 'dd/MM/yyyy'), // วันที่เข้า
+      Utilities.formatDate(entryDate, 'Asia/Bangkok', 'HH:mm:ss'),   // เวลาเข้า
+      Utilities.formatDate(exitDate, 'Asia/Bangkok', 'dd/MM/yyyy'),  // วันที่ออก
+      Utilities.formatDate(exitDate, 'Asia/Bangkok', 'HH:mm:ss'),    // เวลาออก
+      durationFormatted,                             // ระยะเวลา (ชม:นาที)
+      amountValue,                                   // ⭐ ยอดเงิน (รับจาก amount หรือคำนวณ)
+      data.payment_status || 'รอชำระ',               // สถานะ
+      false                                          // Verify - checkbox ว่าง
+    ];
+    
+    sheet.appendRow(newRow);
+    
+    // หาแถวที่เพิ่งเพิ่ม
+    const lastRow = sheet.getLastRow();
+    
+    // ตั้งค่า Checkbox ให้คอลัมน์ Verify (คอลัมน์ที่ 12)
+    const verifyCell = sheet.getRange(lastRow, 12);
+    verifyCell.insertCheckboxes();
+    
+    // จัดรูปแบบแถวข้อมูล
+    const dataRange = sheet.getRange(lastRow, 1, 1, 12);
+    dataRange.setHorizontalAlignment('center');
+    
+    // ตั้งสีสถานะ (คอลัมน์ที่ 11)
+    const statusCell = sheet.getRange(lastRow, 11);
+    if (data.payment_status === 'ชำระแล้ว' || data.payment_status === 'paid') {
+      statusCell.setBackground('#d4edda');
+      statusCell.setFontColor('#155724');
+      statusCell.setValue('ชำระแล้ว');
+    } else {
+      statusCell.setBackground('#fff3cd');
+      statusCell.setFontColor('#856404');
+    }
+    
+    // ตั้งค่าคอลัมน์ยอดเงินเป็นตัวเลข (คอลัมน์ที่ 10)
+    const amountCell = sheet.getRange(lastRow, 10);
+    amountCell.setNumberFormat('#,##0');
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'success',
+      message: 'บันทึกสำเร็จ',
+      duration_formatted: durationFormatted,
+      amount_received: data.amount,
+      amount_calculated: amountValue
+    })).setMimeType(ContentService.MimeType.JSON);
+    
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'error',
+      message: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// ⭐ ฟังก์ชันคำนวณค่าจอดรถ (สำรอง)
+function calculateParkingFee(durationMinutes) {
+  const durationHours = durationMinutes / 60;
+  
+  // อัตรา: ฟรี <1ชม., ชม.แรก ฿30, ชม.ถัดไป ฿20, สูงสุด ฿200/วัน
+  if (durationHours < 1) {
+    return 0; // ฟรี
+  }
+  
+  const days = Math.floor(durationHours / 24);
+  const remainingHours = durationHours - (days * 24);
+  const billableHours = Math.ceil(remainingHours);
+  
+  let total = 0;
+  
+  // ค่าจอดแบบเต็มวัน
+  if (days > 0) {
+    total += days * 200;
+  }
+  
+  // ค่าจอดชั่วโมง
+  if (billableHours >= 1) {
+    total += 30; // ชั่วโมงแรก
+    if (billableHours > 1) {
+      total += (billableHours - 1) * 20; // ชั่วโมงถัดไป
+    }
+    total = Math.min(total, 200); // ไม่เกิน ฿200
+  }
+  
+  return total;
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput('APMAS Google Sheets API is running! ✅');
+}
